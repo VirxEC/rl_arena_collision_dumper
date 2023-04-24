@@ -91,6 +91,8 @@ impl MeshBuilder {
             }
         }
 
+        assert_eq!(verts.len() / 3, *ids.iter().max().unwrap() as usize + 1);
+
         Ok(Self { ids, verts })
     }
 }

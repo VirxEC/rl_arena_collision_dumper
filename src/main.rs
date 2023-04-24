@@ -12,6 +12,9 @@ use converter::MeshBuilder;
 
 const OUT_DIR: &str = "./assets/";
 
+// const MAP: &str = "Stadium_P.upk";
+const MAP: &str = "EuroStadium_Night_P.upk";
+
 fn get_input_dir() -> Option<String> {
     let Ok(input_file) = fs::read_to_string("assets.path") else {
         println!("Couldn't find 'assets.path' file in your base folder!");
@@ -57,7 +60,7 @@ fn uncook() -> io::Result<()> {
         }
     };
 
-    print!("Processing Stadium_P.upk from Rocket League...");
+    print!("Processing {MAP} from Rocket League...");
     io::stdout().flush()?;
 
     // call umodel to uncook all the map files
@@ -71,7 +74,7 @@ fn uncook() -> io::Result<()> {
             "-nolightmap",
             "-notex",
             "-uncook",
-            "Stadium_P.upk",
+            MAP,
         ])
         .stdout(Stdio::null())
         .spawn()?
@@ -134,11 +137,12 @@ fn format_collision_meshes() -> io::Result<()> {
     let mut i = 0;
     for path in file_paths {
         let name = path.file_stem().unwrap().to_string_lossy().to_string();
-        let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
 
         let Some(collisions) = collision_cfg.get(&name) else {
             continue;
         };
+
+        let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
 
         for (scale, y_offset) in collisions {
             let bytes = builder.to_cmf_bytes(scale, *y_offset);
