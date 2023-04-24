@@ -1,0 +1,8 @@
+/target
+/assets
+/collision_meshes
+assets.path
+umodel*
+*.log
+*.py
+*.json
