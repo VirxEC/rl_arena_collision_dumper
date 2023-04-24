@@ -1,5 +1,7 @@
 ## RL Arena Collision Dumper
 
+[![Build and release](https://github.com/VirxEC/rl_arena_collision_dumper/actions/workflows/main.yml/badge.svg)](https://github.com/VirxEC/rl_arena_collision_dumper/actions/workflows/main.yml)
+
 [![forthebadge](https://forthebadge.com/images/badges/made-with-rust.svg)](https://forthebadge.com)
 
 An Rocket League arena collision dumper for [RocketSim](https://github.com/ZealanL/RocketSim) that works on both Windows and Linux and works with the game closed.
