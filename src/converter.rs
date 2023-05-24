@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Read},
+    io::{Cursor, Read, Result},
     str::from_utf8,
 };
 
@@ -7,7 +7,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Clone, Debug, Default)]
 pub struct MeshBuilder {
-    ids: Vec<i32>,
+    ids: Vec<u32>,
     verts: Vec<f32>,
 }
 
@@ -27,9 +27,9 @@ impl MeshBuilder {
         bytes.write_i32::<LittleEndian>(self.ids.len() as i32 / 3).unwrap();
         bytes.write_i32::<LittleEndian>(self.verts.len() as i32 / 3).unwrap();
 
-        for id in &self.ids {
-            bytes.write_i32::<LittleEndian>(*id).unwrap();
-        }
+        self.ids.iter().copied().for_each(|id| {
+            bytes.write_i32::<LittleEndian>(id as i32).unwrap();
+        });
 
         for vert in self.verts.chunks_exact(3) {
             bytes.write_f32::<LittleEndian>(vert[0] / 50. * scale[0]).unwrap();
@@ -41,8 +41,8 @@ impl MeshBuilder {
     }
 
     /// Create a mesh from a Rocket League .pskx file
-    pub fn from_pskx(bytes: &[u8]) -> io::Result<Self> {
-        let mut cursor = io::Cursor::new(bytes);
+    pub fn from_pskx(bytes: &[u8]) -> Result<Self> {
+        let mut cursor = Cursor::new(bytes);
 
         // ensure file header matches PSK_FILE_HEADER
         let mut file_header = [0; 32];
@@ -62,7 +62,7 @@ impl MeshBuilder {
             }
 
             let chunk_id = from_utf8(&chunk_header[0..8]).unwrap();
-            // let chunk_type = i32::from_le_bytes([chunk_header[20], chunk_header[21], chunk_header[22], chunk_header[23]]);
+
             let chunk_data_size = i32::from_le_bytes([chunk_header[24], chunk_header[25], chunk_header[26], chunk_header[27]]) as usize;
             let chunk_data_count = i32::from_le_bytes([chunk_header[28], chunk_header[29], chunk_header[30], chunk_header[31]]) as usize;
 
@@ -84,7 +84,7 @@ impl MeshBuilder {
                     assert_eq!(wedges.len(), chunk_data_count);
                 }
                 "FACE0000" => {
-                    ids.extend(read_faces(&chunk_data, chunk_data_count, &wedges).into_iter().flatten().map(|(id, _, _)| id as i32));
+                    ids = read_faces(&chunk_data, chunk_data_count, &wedges);
                     assert_eq!(ids.len() / 3, chunk_data_count);
                 }
                 _ => {}
@@ -98,66 +98,43 @@ impl MeshBuilder {
 }
 
 pub fn read_vertices(chunk_data: &[u8], data_count: usize) -> Vec<f32> {
-    let mut vertices = Vec::with_capacity(data_count);
+    let mut vertices = Vec::with_capacity(data_count * 3);
 
-    let mut reader = io::Cursor::new(chunk_data);
-    for _ in 0..data_count * 3 {
-        vertices.push(reader.read_f32::<LittleEndian>().unwrap());
-    }
+    let mut reader = Cursor::new(chunk_data);
+    vertices.extend((0..data_count * 3).map(|_| reader.read_f32::<LittleEndian>().unwrap()));
 
     vertices
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Wedge {
-    pub vertex_id: u32,
-    pub uv: [f32; 2],
-    pub material_index: usize,
-}
-
-pub fn read_wedges(chunk_data: &[u8], data_count: usize) -> Vec<Wedge> {
+pub fn read_wedges(chunk_data: &[u8], data_count: usize) -> Vec<u32> {
     let mut wedges = Vec::with_capacity(data_count);
 
-    let mut reader = io::Cursor::new(chunk_data);
+    let mut reader = Cursor::new(chunk_data);
     for _ in 0..data_count {
-        let vertex_id = reader.read_u32::<LittleEndian>().unwrap();
-        let u = reader.read_f32::<LittleEndian>().unwrap();
-        let v = reader.read_f32::<LittleEndian>().unwrap();
-        let material_index = reader.read_u8().unwrap() as usize;
-        wedges.push(Wedge {
-            vertex_id,
-            uv: [u, v],
-            material_index,
-        });
+        wedges.push(reader.read_u32::<LittleEndian>().unwrap());
 
-        // read padding bytes
-        reader.read_u8().unwrap();
-        reader.read_u8().unwrap();
-        reader.read_u8().unwrap();
+        // skip padding bytes / unused data
+        reader.set_position(reader.position() + 12);
     }
 
     wedges
 }
 
-pub fn read_faces(chunk_data: &[u8], data_count: usize, wedges: &[Wedge]) -> Vec<[(u32, [f32; 2], usize); 3]> {
+pub fn read_faces(chunk_data: &[u8], data_count: usize, wedges: &[u32]) -> Vec<u32> {
     let mut faces = Vec::with_capacity(data_count * 3);
 
-    let mut reader = io::Cursor::new(chunk_data);
+    let mut reader = Cursor::new(chunk_data);
     for _ in 0..data_count {
-        let wdg_idx_1 = reader.read_u16::<LittleEndian>().unwrap() as usize;
-        let wdg_idx_2 = reader.read_u16::<LittleEndian>().unwrap() as usize;
-        let wdg_idx_3 = reader.read_u16::<LittleEndian>().unwrap() as usize;
-        let _mat_index = reader.read_u8().unwrap();
-        let _aux_mat_index = reader.read_u8().unwrap();
-        let _smoothing_group = reader.read_u32::<LittleEndian>().unwrap();
+        let wedge_indices = [
+            reader.read_u16::<LittleEndian>().unwrap(),
+            reader.read_u16::<LittleEndian>().unwrap(),
+            reader.read_u16::<LittleEndian>().unwrap(),
+        ];
 
-        let verts = [wedges[wdg_idx_1], wedges[wdg_idx_2], wedges[wdg_idx_3]];
+        // skip unused data
+        reader.set_position(reader.position() + 6);
 
-        faces.push([
-            (verts[1].vertex_id, verts[1].uv, verts[1].material_index),
-            (verts[0].vertex_id, verts[0].uv, verts[0].material_index),
-            (verts[2].vertex_id, verts[2].uv, verts[2].material_index),
-        ]);
+        faces.extend([wedges[wedge_indices[1] as usize], wedges[wedge_indices[0] as usize], wedges[wedge_indices[2] as usize]]);
     }
 
     faces

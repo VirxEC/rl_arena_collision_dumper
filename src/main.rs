@@ -1,18 +1,15 @@
 mod converter;
 
+use converter::MeshBuilder;
 use std::{
     collections::HashMap,
-    fs::{self, read_dir},
+    fs,
     io::{self, Write},
     path::Path,
     process::{Command, Stdio},
 };
 
-use converter::MeshBuilder;
-
 const OUT_DIR: &str = "./assets/";
-
-// const MAP: &str = "Stadium_P.upk";
 const MAP: &str = "EuroStadium_Night_P.upk";
 
 fn get_input_dir() -> Option<String> {
@@ -90,7 +87,7 @@ fn read_collision_cfg() -> io::Result<HashMap<String, CollisionInstances>> {
     print!("Reading collision config...");
     io::stdout().flush()?;
 
-    let mut collision_cfg = HashMap::new();
+    let mut collision_cfg = HashMap::default();
 
     let file = fs::read_to_string("collision.cfg")?;
     for line in file.lines() {
@@ -129,7 +126,7 @@ fn format_collision_meshes() -> io::Result<()> {
     }
 
     // get the uncooked pskx files from Rocket League
-    let file_paths = read_dir(meshes)?
+    let file_paths = fs::read_dir(meshes)?
         .flatten()
         .filter(|entry| entry.path().extension().unwrap_or_default() == "pskx")
         .map(|entry| entry.path());
