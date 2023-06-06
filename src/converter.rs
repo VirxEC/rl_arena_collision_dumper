@@ -33,7 +33,7 @@ impl MeshBuilder {
 
         for vert in self.verts.chunks_exact(3) {
             bytes.write_f32::<LittleEndian>(vert[0] / 50. * scale[0]).unwrap();
-            bytes.write_f32::<LittleEndian>(vert[1] / 50. * scale[1] - y_offset).unwrap();
+            bytes.write_f32::<LittleEndian>((vert[1] / 50.).mul_add(scale[1], -y_offset)).unwrap();
             bytes.write_f32::<LittleEndian>(vert[2] / 50. * scale[2]).unwrap();
         }
 

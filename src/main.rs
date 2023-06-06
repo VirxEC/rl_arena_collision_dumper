@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod converter;
 
 use converter::MeshBuilder;
@@ -38,23 +40,20 @@ fn uncook() -> io::Result<()> {
         return Ok(());
     }
 
-    let input_dir = match get_input_dir() {
-        Some(input_dir) => input_dir,
-        None => {
-            println!("PLEASE ENTER the absolute path to your 'rocketleague/TAGame/CookedPCConsole' folder:");
-            let mut assets_dir = String::new();
-            io::stdin().read_line(&mut assets_dir)?;
-            assets_dir.pop();
+    let input_dir = if let Some(input_dir) = get_input_dir() {
+        input_dir
+    } else {
+        println!("PLEASE ENTER the absolute path to your 'rocketleague/TAGame/CookedPCConsole' folder:");
+        let mut assets_dir = String::new();
+        io::stdin().read_line(&mut assets_dir)?;
+        assets_dir.pop();
 
-            let assets_path = Path::new(&assets_dir);
-            if !assets_path.is_dir() || !assets_path.exists() {
-                panic!("Couldn't find the directory to Rocket League specified!");
-            }
+        let assets_path = Path::new(&assets_dir);
+        assert!(!(!assets_path.is_dir() || !assets_path.exists()), "Couldn't find the directory to Rocket League specified!");
 
-            println!("Saving assets path to 'assets.path' file...");
-            fs::write("assets.path", &assets_dir)?;
-            assets_dir
-        }
+        println!("Saving assets path to 'assets.path' file...");
+        fs::write("assets.path", &assets_dir)?;
+        assets_dir
     };
 
     print!("Processing {MAP} from Rocket League...");
