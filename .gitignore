@@ -1,8 +1,8 @@
+/.vscode
 /target
 /assets
 /collision_meshes
+/stadiums
 assets.path
 umodel*
 *.log
-*.py
-*.json

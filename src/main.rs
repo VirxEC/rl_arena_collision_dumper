@@ -1,10 +1,13 @@
 #![forbid(unsafe_code)]
+#![warn(clippy::all)]
 
 mod converter;
+mod maps;
 
 use converter::MeshBuilder;
+use walkdir::WalkDir;
+use maps::{RLMap, MAPS};
 use std::{
-    collections::HashMap,
     fs,
     io::{self, Write},
     path::Path,
@@ -12,7 +15,7 @@ use std::{
 };
 
 const OUT_DIR: &str = "./assets/";
-const MAP: &str = "EuroStadium_Night_P.upk";
+const UMODEL: &str = if cfg!(windows) { "umodel.exe" } else { "./umodel" };
 
 fn get_input_dir() -> Option<String> {
     let Ok(input_file) = fs::read_to_string("assets.path") else {
@@ -49,66 +52,86 @@ fn uncook() -> io::Result<()> {
         assets_dir.pop();
 
         let assets_path = Path::new(&assets_dir);
-        assert!(!(!assets_path.is_dir() || !assets_path.exists()), "Couldn't find the directory to Rocket League specified!");
+        assert!(
+            assets_path.is_dir() && assets_path.exists(),
+            "Couldn't find the directory to Rocket League specified!"
+        );
 
         println!("Saving assets path to 'assets.path' file...");
         fs::write("assets.path", &assets_dir)?;
         assets_dir
     };
 
-    print!("Processing {MAP} from Rocket League...");
-    io::stdout().flush()?;
+    let umodel = Path::new(UMODEL);
+    assert!(umodel.exists(), "Couldn't find umodel executable!");
 
-    // call umodel to uncook all the map files
-    Command::new(if cfg!(windows) { "umodel.exe" } else { "./umodel" })
-        .args([
-            &format!("-path={input_dir}"),
-            &format!("-out={OUT_DIR}"),
-            "-game=rocketleague",
-            "-export",
-            "-nooverwrite",
-            "-nolightmap",
-            "-notex",
-            "-uncook",
-            MAP,
-        ])
-        .stdout(Stdio::null())
-        .spawn()?
-        .wait()?;
+    for map in &MAPS {
+        print!("Processing {} from Rocket League...", map.upk_file_name);
+        io::stdout().flush()?;
 
-    println!(" done.");
+        // call umodel to uncook all the map files
+        Command::new(umodel)
+            .args([
+                &format!("-path={input_dir}"),
+                &format!("-out={OUT_DIR}"),
+                "-game=rocketleague",
+                "-export",
+                "-nooverwrite",
+                "-nolightmap",
+                "-notex",
+                "-uncook",
+                map.upk_file_name,
+            ])
+            .stdout(Stdio::null())
+            .spawn()?
+            .wait()?;
+
+        println!(" done.");
+    }
 
     Ok(())
 }
 
-type CollisionInstances = Vec<([f32; 3], f32)>;
-fn read_collision_cfg() -> io::Result<HashMap<String, CollisionInstances>> {
-    print!("Reading collision config...");
-    io::stdout().flush()?;
+fn format_meshes(map: &RLMap, meshes: &Path) -> io::Result<()> {
+    let out_folder = Path::new("collision_meshes").join(map.out_folder_name);
 
-    let mut collision_cfg = HashMap::default();
-
-    let file = fs::read_to_string("collision.cfg")?;
-    for line in file.lines() {
-        let mut split = line.split_whitespace();
-        let name = split.next().unwrap().to_string();
-        let x = split.next().unwrap().parse::<f32>().unwrap();
-        let y = split.next().unwrap().parse::<f32>().unwrap();
-        let z = split.next().unwrap().parse::<f32>().unwrap();
-        let y_offset = split.next().map(|s| s.parse::<f32>().unwrap()).unwrap_or_default();
-
-        collision_cfg.entry(name).or_insert_with(Vec::new).push(([x, y, z], y_offset));
+    // create the output folder if it doesn't exist
+    if !out_folder.exists() {
+        fs::create_dir_all(&out_folder)?;
     }
 
-    println!(" done.");
+    // get the uncooked pskx files from Rocket League
+    let file_paths = WalkDir::new(meshes.display().to_string()).into_iter().flatten();
 
-    Ok(collision_cfg)
+    let mut i = 0;
+    for path in file_paths {
+        if path.file_type().is_dir() {
+            continue;
+        }
+
+        let path = path.path();
+        let name = path.file_stem().unwrap().to_string_lossy().to_string();
+
+        let Some(collisions) = map.collision_config.get(name.as_str()) else {
+            continue;
+        };
+
+        let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
+
+        for instance in collisions {
+            let bytes = builder.to_cmf_bytes(instance)?;
+
+            let file_name = out_folder.join(format!("mesh_{i}.cmf"));
+            fs::write(file_name, bytes)?;
+            i += 1;
+        }
+    }
+
+    Ok(())
 }
 
-fn format_collision_meshes() -> io::Result<()> {
-    let collision_cfg = read_collision_cfg()?;
-
-    let meshes = Path::new(OUT_DIR).join("FieldCollision_Standard").join("StaticMesh3");
+fn format_maps() -> io::Result<()> {
+    let meshes = Path::new(OUT_DIR);
 
     if meshes.exists() {
         print!("Formatting collision meshes for RocketSim...");
@@ -117,36 +140,8 @@ fn format_collision_meshes() -> io::Result<()> {
         panic!("Couldn't find collision meshes!")
     }
 
-    let out_folder = Path::new("collision_meshes").join("soccar");
-
-    // create the output folder if it doesn't exist
-    if !out_folder.exists() {
-        fs::create_dir_all(&out_folder)?;
-    }
-
-    // get the uncooked pskx files from Rocket League
-    let file_paths = fs::read_dir(meshes)?
-        .flatten()
-        .filter(|entry| entry.path().extension().unwrap_or_default() == "pskx")
-        .map(|entry| entry.path());
-
-    let mut i = 0;
-    for path in file_paths {
-        let name = path.file_stem().unwrap().to_string_lossy().to_string();
-
-        let Some(collisions) = collision_cfg.get(&name) else {
-            continue;
-        };
-
-        let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
-
-        for (scale, y_offset) in collisions {
-            let bytes = builder.to_cmf_bytes(scale, *y_offset);
-
-            let file_name = out_folder.join(format!("mesh_{i}.cmf"));
-            fs::write(file_name, bytes)?;
-            i += 1;
-        }
+    for map in &MAPS {
+        format_meshes(map, meshes)?;
     }
 
     println!(" done.");
@@ -165,7 +160,7 @@ fn remove_extra_files() -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     uncook()?;
-    format_collision_meshes()?;
+    format_maps()?;
     remove_extra_files()?;
 
     Ok(())
