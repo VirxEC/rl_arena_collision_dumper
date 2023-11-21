@@ -20,5 +20,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE collision.cfg"
+          EXTRA_FILES: "README.md LICENSE"
           MINIFY: "true"
