@@ -118,7 +118,7 @@ fn format_meshes(map: &RLMap, meshes: &Path) -> io::Result<()> {
 
         let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
 
-        for instance in collisions {
+        for instance in collisions.iter() {
             let bytes = builder.to_cmf_bytes(instance)?;
 
             let file_name = out_folder.join(format!("mesh_{i}.cmf"));

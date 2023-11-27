@@ -3,14 +3,16 @@ name = "rl_arena_collision_dumper"
 description = "Dumps Rocket League's collision files for RocketSim"
 repository = "https://github.com/VirxEC/rl_arena_collision_dumper"
 license = "MIT"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 byteorder = "1.5.0"
-once_cell = "1.18.0"
+combo_vec = { version = "0.7.0", default-features = false }
+phf = { version = "0.11.2", features = ["macros"] }
 walkdir = "2.4.0"
 
 [profile.release]
