@@ -1,4 +1,4 @@
-use combo_vec::{ReArr, re_arr};
+use combo_vec::{re_arr, ReArr};
 use phf::phf_map;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -49,7 +49,7 @@ pub static MAPS: [RLMap; 2] = [
                 CollisionInstance::new(0., [1., 1., 1.]),
                 CollisionInstance::new(0., [-1., 1., 1.]),
             ],
-        }
+        },
     },
     RLMap {
         upk_file_name: "HoopsStadium_P.upk",
@@ -85,6 +85,6 @@ pub static MAPS: [RLMap; 2] = [
                 CollisionInstance::new(0., [-1., 1., 1.]),
                 CollisionInstance::new(0., [1., 1., 1.]),
             ],
-        }
+        },
     },
 ];

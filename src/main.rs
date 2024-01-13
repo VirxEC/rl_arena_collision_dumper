@@ -5,7 +5,6 @@ mod converter;
 mod maps;
 
 use converter::MeshBuilder;
-use walkdir::WalkDir;
 use maps::{RLMap, MAPS};
 use std::{
     fs,
@@ -13,6 +12,7 @@ use std::{
     path::Path,
     process::{Command, Stdio},
 };
+use walkdir::WalkDir;
 
 const OUT_DIR: &str = "./assets/";
 const UMODEL: &str = if cfg!(windows) { "umodel.exe" } else { "./umodel" };
