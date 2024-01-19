@@ -14,6 +14,29 @@ pub struct MeshBuilder {
 impl MeshBuilder {
     const PSK_FILE_HEADER: &'static [u8] = b"ACTRHEAD\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
+    /// Write mesh to 2 .bin files
+    /// 
+    /// Structure:
+    /// - *_ids.bin - the ids as u32s
+    /// - *_vertices.bin - the vertices as f32s
+    #[cfg(feature = "bin")]
+    pub fn to_bin_bytes(&self) -> Result<[Vec<u8>; 2]> {
+        let mut ids = Vec::with_capacity(4 * self.ids.len());
+        let mut verts = Vec::with_capacity(4 * self.verts.len() * 3);
+
+        for id in self.ids.iter().copied() {
+            ids.write_u32::<LittleEndian>(id)?;
+        }
+
+        for vert in self.verts.iter().copied() {
+            verts.write_f32::<LittleEndian>(vert[0])?;
+            verts.write_f32::<LittleEndian>(vert[1])?;
+            verts.write_f32::<LittleEndian>(vert[2])?;
+        }
+
+        Ok([ids, verts])
+    }
+
     /// Write mesh to a .cmf file
     ///
     /// Structure:

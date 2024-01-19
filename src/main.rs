@@ -14,7 +14,7 @@ use std::{
 };
 use walkdir::WalkDir;
 
-const OUT_DIR: &str = "./assets/";
+const OUT_DIR: &str = "./rl_assets/";
 const UMODEL: &str = if cfg!(windows) { "umodel.exe" } else { "./umodel" };
 
 fn get_input_dir() -> Option<String> {
@@ -100,8 +100,16 @@ fn format_meshes(map: &RLMap, meshes: &Path) -> io::Result<()> {
         fs::create_dir_all(&out_folder)?;
     }
 
+    #[cfg(feature = "bin")]
+    let bin_out_folder = Path::new("assets").join(map.bin_out_folder_name);
+
+    #[cfg(feature = "bin")]
+    if !bin_out_folder.exists() {
+        fs::create_dir_all(&bin_out_folder)?;
+    }
+
     // get the uncooked pskx files from Rocket League
-    let file_paths = WalkDir::new(meshes.display().to_string()).into_iter().flatten();
+    let file_paths = WalkDir::new(meshes).into_iter().flatten();
 
     let mut i = 0;
     for path in file_paths {
@@ -117,6 +125,17 @@ fn format_meshes(map: &RLMap, meshes: &Path) -> io::Result<()> {
         };
 
         let builder = MeshBuilder::from_pskx(&fs::read(path)?)?;
+
+        #[cfg(feature = "bin")]
+        {
+            let [ids, verts] = builder.to_bin_bytes()?;
+
+            let ids_file_name = bin_out_folder.join(format!("{}_ids.bin", map.map_part_to_file_name[name.as_str()]));
+            let verts_file_name = bin_out_folder.join(format!("{}_vertices.bin", map.map_part_to_file_name[name.as_str()]));
+
+            fs::write(ids_file_name, ids)?;
+            fs::write(verts_file_name, verts)?;
+        }
 
         for instance in collisions.iter() {
             let bytes = builder.to_cmf_bytes(instance)?;

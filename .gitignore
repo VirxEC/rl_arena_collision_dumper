@@ -1,5 +1,6 @@
 /.vscode
 /target
+/rl_assets
 /assets
 /collision_meshes
 /stadiums
